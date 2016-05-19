@@ -5,195 +5,150 @@
 
 using namespace std;
 
-void matrixInit(int N, int* A)
+void matrixFill_2D(int N, int** A)
 {
-	for (int i = 0; i<N; i++)
-	{
-		A[i] = rand() % 100;
-	}
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++)
+			A[i][j] = 1;
 }
 
-void matrixInit_2D(int N, int** A)
+void matrixZeros_2D(int N, int **A)
 {
-	for (int i = 0; i<N; i++)
-		for (int j=0; j<N; j++)
-		{
-			A[i][j] = rand() % 100;
-		}
-}
-
-void matrixReset(int N, int *A)
-{
-	for (int i = 0; i<N; i++)
-	{
-		A[i] = 0;
-	}
-}
-
-void matrixReset_2D(int N, int **A)
-{
-	for (int i = 0; i<N; i++)
-		for(int j=0; j<N; j++)
-		{
+	for (int i = 0; i < N; i++)
+		for(int j = 0; j < N; j++)
 			A[i][j] = 0;
-		}
-}
-
-void matrixMult(int N, int A[], int B[], int* C)
-{
-	int i, j, k;
-
-	for (i = 0; i<N; i++)
-		for (j = 0; j<N; j++)
-			for (k = 0; k<N; k++)
-				C[i*N + j] += A[i*N + k] * B[k*N + j];
-}
-
-void matrixMult_2D_3loops(int N, int **A, int **B, int** C)
-{
-	int i, j, k;
-
-	for (i = 0; i<N; i++)
-		for (j = 0; j<N; j++)
-			for (k = 0; k<N; k++)
-				C[i][j] += A[i][k] * B[k][j];
-}
-
-void matrixMult_2D_6loops(int N, int **A, int **B, int** C)
-{
-	int numBlocks = 2;
-	int sizeBlock = N / numBlocks;
-
-	int **Ctemp;
-	Ctemp = new int *[sizeBlock];
-	for(int t=0; t<sizeBlock; t++)
-		Ctemp[t] = new int[sizeBlock];
-
-	for(int i=0; i<numBlocks; i++)
-		for(int j=0; j<numBlocks; j++)
-		{
-			matrixReset_2D(sizeBlock, Ctemp);
-
-			for (int k = 0; k<sizeBlock; k++)
-				for (int ib = 0; ib < sizeBlock; ib++)
-					for (int jb = 0; jb<sizeBlock; jb++)
-						Ctemp[ib][jb] += A[k][i*sizeBlock+ib] * B[j*sizeBlock+jb][k];
-
-			for (int ib=0; ib<sizeBlock; ib++)
-			{
-				for(int jb=0; jb<sizeBlock; jb++)
-					C[j*sizeBlock+jb][i*sizeBlock+ib] = Ctemp[jb][ib];
-			}
-		}
-
-}
-
-void matrixPrint(int N, int A[])
-{
-	int k = N;
-	int len = N * N;
-
-	for (int i = 0; i<len; i++)
-	{
-		if (i == k)
-		{
-			cout << "\n";
-			k += N;
-		}
-		cout << A[i] << " ";
-	}
-	cout << endl;
 }
 
 void matrixPrint_2D(int N, int **A)
 {
-	for (int i = 0; i<N; i++)
+	for (int i = 0; i < N; i++)
 	{
-		for(int j=0; j<N; j++)
+		for(int j = 0; j < N; j++)
 			cout << A[i][j] << " ";
 		cout << endl;
 	}
 }
 
-void matrixTest1D()
+void matrixMult_2D_3loops(int N, int **A, int **B, int** C)
 {
-	const int N = 292;		// con un numero mayor stack overflow
-	const int len = N * N;
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++)
+			for (int k = 0; k < N; k++)
+				C[i][j] += A[i][k] * B[k][j];
+}
 
-	int A[len], B[len], C[len];
+void matrixMult_2D_3loopsC(int N, int **A, int **B, int** C)
+{
+	for (int i = 0; i < N; i++)
+		for (int k = 0; k < N; k++)
+			for (int j = 0; j < N; j++)
+				C[i][j] += A[i][k] * B[k][j];
+}
 
-	matrixInit(len, A);
-	matrixInit(len, B);
-	matrixReset(len, C);
+int BLOCK_SIZE = 16;
 
-	clock_t begin = clock();
-	matrixMult(N, A, B, C);
-	clock_t end = clock();
+void matrixMult_2D_5loops(int N, int **A, int **B, int** C)
+{
+	for (int i0 = 0; i0 < N; i0 += BLOCK_SIZE)
+		for(int j0 = 0; j0 < N; j0 += BLOCK_SIZE)
+			for(int i = i0; i < min(i0 + BLOCK_SIZE, N); i++)
+				for(int j = j0; j < min(j0 + BLOCK_SIZE, N); j++)
+					for(int k = 0; k < N; k++)
+						C[i][j] += A[i][k] * B[k][j];
+}
 
-	double elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
+void matrixMult_2D_5loopsC(int N, int **A, int **B, int** C)
+{
+	for (int i0 = 0; i0 < N; i0 += BLOCK_SIZE)
+		for(int j0 = 0; j0 < N; j0 += BLOCK_SIZE)
+			for(int i = i0; i < min(i0 + BLOCK_SIZE, N); i++)
+				for(int k = 0; k < N; k++)
+					for(int j = j0; j < min(j0 + BLOCK_SIZE, N); j++)
+						C[i][j] += A[i][k] * B[k][j];
+}
 
-	//cout << "Matriz A: \n";
-	//matrixPrint(N, A);
-	//cout << endl << "Matriz B: \n";
-	//matrixPrint(N, B);
-	//cout << endl << "Matriz C: \n";
-	//matrixPrint(N, C);
-
-	cout << endl << "Time elapsed of 3 loops: " << elapsed_secs << endl;
+void matrixMult_2D_6loops(int N, int **A, int **B, int** C)
+{
+	for (int i = 0; i < N; i += BLOCK_SIZE)
+		for (int k = 0; k < N; k += BLOCK_SIZE)
+			for (int j = 0; j < N; j += BLOCK_SIZE)
+				for (int iInner = i; iInner < min(i + BLOCK_SIZE, N); iInner++)
+					for (int kInner = k; kInner < min(k + BLOCK_SIZE, N); kInner++)
+						for (int jInner = j; jInner < min(j + BLOCK_SIZE, N); jInner++)
+							C[iInner][jInner] += A[iInner][kInner] * B[kInner][jInner];
 }
 
 void matrixTest2D()
 {
-	const int N = 4;
+	const int N = 1000;
 
 	int **A, **B, **C;
+
+	clock_t begin, end;
+	double elapsed_secs;
 
 	A = new int *[N];
 	B = new int *[N];
 	C = new int *[N];
 
-	for(int i=0; i<N; i++)
+	for(int i = 0; i < N; i++)
 	{
 		A[i] = new int[N];
 		B[i] = new int[N];
 		C[i] = new int[N];
 	}
 
-	matrixInit_2D(N, A);
-	matrixInit_2D(N, B);
-	matrixReset_2D(N, C);
+	matrixFill_2D(N, A);
+	matrixFill_2D(N, B);
+	matrixZeros_2D(N, C);
 
-	clock_t begin = clock();
+	begin = clock();
 	matrixMult_2D_3loops(N, A, B, C);
-	clock_t end = clock();
+	end = clock();
 
-	/*
-	cout << "Matriz A: \n";
-	matrixPrint_2D(N, A);
-	cout << endl << "Matriz B: \n";
-	matrixPrint_2D(N, B);
-	cout << endl << "Matriz C: \n";
-	matrixPrint_2D(N, C);
-	*/
+	elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
+	cout << "Matrix " << N << " x " << N <<" -- Time elapsed of 3 loops normal: " << elapsed_secs << " secs" << endl;
+	//matrixPrint_2D(N, C);
 
-	double elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
-	cout << endl << "Time elapsed of 3 loops: " << elapsed_secs << endl;
+	matrixZeros_2D(N, C);
+	begin = clock();
+	matrixMult_2D_3loopsC(N, A, B, C);
+	end = clock();
 
-	matrixPrint_2D(N, C);
+	elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
+	cout << "Matrix " << N << " x " << N <<" -- Time elapsed of 3 loops by column: " << elapsed_secs << " secs" << endl;
+	//matrixPrint_2D(N, C);
 
-	matrixReset_2D(N, C);
+	matrixZeros_2D(N, C);
+	begin = clock();
+	matrixMult_2D_5loops(N, A, B, C);
+	end = clock();
+
+	elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
+	cout << "Matrix " << N << " x " << N <<" -- Time elapsed of 5 loops normal: " << elapsed_secs << " secs" << endl;
+	//matrixPrint_2D(N, C);
+
+	matrixZeros_2D(N, C);
+	begin = clock();
+	matrixMult_2D_5loopsC(N, A, B, C);
+	end = clock();
+
+	elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
+	cout << "Matrix " << N << " x " << N <<" -- Time elapsed of 5 loops by column: " << elapsed_secs << " secs" << endl;
+	//matrixPrint_2D(N, C);
+
+	matrixZeros_2D(N, C);
 	begin = clock();
 	matrixMult_2D_6loops(N, A, B, C);
 	end = clock();
 
 	elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
-	cout << endl << "Time elapsed of 6 loops: " << elapsed_secs << endl;
-	matrixPrint_2D(N, C);
+	cout << "Matrix " << N << " x " << N <<" -- Time elapsed of 6 loops: " << elapsed_secs << " secs" << endl;
+	//matrixPrint_2D(N, C);
 }
 
 int main()
 {
-	//matrixTest1D();
 	matrixTest2D();
 	return 0;
 }
