@@ -45,7 +45,7 @@ void matrixMult_2D_3loopsC(int N, int **A, int **B, int** C)
 				C[i][j] += A[i][k] * B[k][j];
 }
 
-int BLOCK_SIZE = 16;
+int BLOCK_SIZE = 8;
 
 void matrixMult_2D_5loops(int N, int **A, int **B, int** C)
 {
@@ -60,22 +60,22 @@ void matrixMult_2D_5loops(int N, int **A, int **B, int** C)
 void matrixMult_2D_5loopsC(int N, int **A, int **B, int** C)
 {
 	for (int i0 = 0; i0 < N; i0 += BLOCK_SIZE)
-		for(int j0 = 0; j0 < N; j0 += BLOCK_SIZE)
+		for(int k0 = 0; k0 < N; k0 += BLOCK_SIZE)
 			for(int i = i0; i < min(i0 + BLOCK_SIZE, N); i++)
-				for(int k = 0; k < N; k++)
-					for(int j = j0; j < min(j0 + BLOCK_SIZE, N); j++)
+				for(int k = k0; k < min(k0 + BLOCK_SIZE, N); k++)
+					for(int j = 0; j < N; j++)
 						C[i][j] += A[i][k] * B[k][j];
 }
 
 void matrixMult_2D_6loops(int N, int **A, int **B, int** C)
 {
-	for (int i = 0; i < N; i += BLOCK_SIZE)
-		for (int k = 0; k < N; k += BLOCK_SIZE)
-			for (int j = 0; j < N; j += BLOCK_SIZE)
-				for (int iInner = i; iInner < min(i + BLOCK_SIZE, N); iInner++)
-					for (int kInner = k; kInner < min(k + BLOCK_SIZE, N); kInner++)
-						for (int jInner = j; jInner < min(j + BLOCK_SIZE, N); jInner++)
-							C[iInner][jInner] += A[iInner][kInner] * B[kInner][jInner];
+	for (int i0 = 0; i0 < N; i0 += BLOCK_SIZE)
+		for (int k0 = 0; k0 < N; k0 += BLOCK_SIZE)
+			for (int j0 = 0; j0 < N; j0 += BLOCK_SIZE)
+				for (int i = i0; i < min(i0 + BLOCK_SIZE, N); i++)
+					for (int k = k0; k < min(k0 + BLOCK_SIZE, N); k++)
+						for (int j = j0; j < min(j0 + BLOCK_SIZE, N); j++)
+							C[i][j] += A[i][k] * B[k][j];
 }
 
 void matrixTest2D()
