@@ -1,31 +1,33 @@
 #include <iostream>
 #include <stdlib.h>
+#include <stack>
+#include <time.h>
 
 using namespace std;
 
-
-// Global variables
-const int N = 4;	// Number of cities
-const int hometown = 0;	// vertex o city 0, salesperson's hometown
-int **digraph;	// Data structure of input digraph
-
-typedef int city_t;
+#define N 10	// Number of cities
+#define hometown 0		// salesperson's hometown (city 0)
+#define MAX_DIST 9999999
 
 typedef struct
 {
-	city_t cities[N];
+	int cities[N];
 	int nCities;
 	double vPath;
 } tour_t;
 
+// Global variables
+int digraph[N][N];		// Data structure of input digraph
 tour_t best_tour;	// best tour with minimal cost
 
+#define Tour_city(tour, i) (tour->cities[i])
+
+
+// This function creates a digraph with random values
 void createDigraph()
 {
-	digraph = new int*[N];
 	for(int i=0; i<N; i++)
 	{
-		digraph[i] = new int[N];
 		for(int j=0; j<N; j++)
 		{
 			if(i == j)
@@ -36,17 +38,43 @@ void createDigraph()
 	}
 }
 
-// Examines if there are n cities on the partial tour
+// This function prints the cities and length of the path
+void printPath(tour_t tour)
+{
+	cout << "Path: ";
+	for(int i=0; i<tour.nCities; i++)
+	{
+		cout << (tour.cities[i]) << " - ";
+	}
+	cout << tour.cities[0];
+	cout << "\nLength: " << tour.vPath << endl;
+}
+
+// This function prints the values of digraph in console
+void printDigraph()
+{
+	cout << "Digraph with " << N << " cities:" << endl;
+	for(int i=0; i<N; i++)
+	{
+		for (int j=0; j<N; j++)
+			cout << digraph[i][j] << " ";
+		cout << endl;
+	}
+}
+
+// Return the number of cities in the path or tour
 int City_count(tour_t tour)
 {
 	return tour.nCities;
 }
 
-bool Best_tour(tour_t tour)
+// This function verifies if the tour is better than the current best tour
+bool Is_best_tour(tour_t tour)
 {
 	return tour.vPath < best_tour.vPath;
 }
 
+// Updates the current best tour to tour
 void Update_best_tour(tour_t tour)
 {
 	best_tour.nCities = tour.nCities;
@@ -56,7 +84,7 @@ void Update_best_tour(tour_t tour)
 }
 
 // Checks if the city has already been visited
-bool Feasible(tour_t tour, city_t city)
+bool Feasible(tour_t tour, int city)
 {
 	for(int i=0; i<tour.nCities; i++)
 	{
@@ -66,39 +94,134 @@ bool Feasible(tour_t tour, city_t city)
 	return true;
 }
 
-void Add_city(tour_t *tour, city_t city)
+// Adds a new city to the tour
+void Add_city(tour_t *tour, int city)
 {
-	int lastCity = tour->cities[tour->nCities-1];
+	int iniCity, lastCity;
+
+	if(tour->nCities > 0)
+	{
+		iniCity = Tour_city(tour, 0);
+		lastCity = Tour_city(tour, tour->nCities - 1);
+		tour->vPath = tour->vPath + digraph[lastCity][city] + digraph[city][iniCity] - digraph[lastCity][iniCity];
+	}
 	tour->cities[tour->nCities++] = city;
-	tour->vPath += digraph[lastCity][city];
 }
 
-void Remove_last_city(tour_t *tour, city_t city)
+// Removes the last city in the tour
+void Remove_last_city(tour_t *tour)
 {
-	int lastCity = tour->cities[tour->nCities-2];
-	tour->cities[tour->nCities--] = -1;
-	tour->vPath -= digraph[lastCity][city];
+	if(tour->nCities <= 1)
+	{
+		tour->nCities = 0;
+		tour->vPath = 0;
+		return;
+	}
+
+	int iniCity, lastCity, newLastCity;
+
+	iniCity = Tour_city(tour, 0);
+	lastCity = Tour_city(tour, tour->nCities - 1);
+	newLastCity = Tour_city(tour, tour->nCities - 2);
+
+	tour->nCities--;
+	tour->vPath = tour->vPath - (digraph[newLastCity][lastCity] + digraph[lastCity][iniCity]) + digraph[newLastCity][iniCity];
 }
 
+// Recursive DFS
 void Depth_first_search(tour_t tour)
 {
-	city_t city;
-
 	if(City_count(tour) == N)
 	{
-		if(Best_tour(tour))
+		if(Is_best_tour(tour))
 			Update_best_tour(tour);
 	}
 	else
 	{
-		// Se visita a los vecinos
-		for(city=0; city<N; city++)
+		// Visiting neighbors
+		for(int city=0; city<N; city++)
 		{
 			if(Feasible(tour, city))
 			{
 				Add_city(&tour, city);
 				Depth_first_search(tour);
-				Remove_last_city(&tour, city);
+				Remove_last_city(&tour);
+			}
+		}
+	}
+}
+
+#define NO_CITY -1
+
+// Iterative DFS using the variable NO_CITY
+void Depth_first_search_iter01(tour_t tour)
+{
+	stack<int> myStack;
+
+	for(int city = N-1; city >= 1; city--)
+	{
+		myStack.push(city);
+
+		while(!myStack.empty())
+		{
+			city = myStack.top();
+			myStack.pop();
+
+			if(city == NO_CITY)
+			{
+				Remove_last_city(&tour);
+			}
+			else
+			{
+				Add_city(&tour, city);
+				if(City_count(tour) == N)
+				{
+					if(Is_best_tour(tour))
+						Update_best_tour(tour);
+					Remove_last_city(&tour);
+				}
+				else
+				{
+					myStack.push(NO_CITY);
+					for(int nbr = N-1; nbr>=1; nbr--)
+					{
+						if(Feasible(tour, nbr))
+							myStack.push(nbr);
+					}
+				}
+			}
+		}
+	}
+}
+
+// Iterative DFS without NO_CITY
+void Depth_first_search_iter02(tour_t tour)
+{
+	stack<tour_t> myStack;
+	tour_t curr_tour;
+
+	myStack.push(tour);
+
+	while(!myStack.empty())
+	{
+		curr_tour = myStack.top();
+		myStack.pop();
+
+		if(City_count(curr_tour) == N)
+		{
+			if(Is_best_tour(curr_tour))
+				Update_best_tour(curr_tour);
+		}
+		else
+		{
+			for(int nbr = N-1; nbr >= 1; nbr--)
+			{
+				if(Feasible(curr_tour, nbr))
+				{
+					Add_city(&curr_tour, nbr);
+					myStack.push(curr_tour);
+					Remove_last_city(&curr_tour);
+				}
 			}
 		}
 	}
@@ -106,36 +229,30 @@ void Depth_first_search(tour_t tour)
 
 int main()
 {
-	createDigraph();
-
-	cout << "El grafo generado de " << N << " ciudades es:"<<endl;
-	for(int i=0; i<N; i++)
-	{
-		for (int j=0; j<N; j++)
-			cout << digraph[i][j] << " ";
-		cout << endl;
-	}
-
-	//best_tour.cities = new city_t[N];
 	best_tour.nCities = 0;
-	best_tour.vPath = 9999999;
+	best_tour.vPath = MAX_DIST;
 
-	cout << "seteado best tour";
+	createDigraph();
+	//printDigraph();
+
 	tour_t tour;
-	//tour.cities = new city_t[N];
 	tour.nCities = 0;
 	tour.vPath = 0;
-
-	cout << "Se agregara la ciudad de inicio";
 	Add_city(&tour, hometown);
 
-	Depth_first_search(tour);
+	clock_t begin, end;
+	double elapsed_secs = 0;
+	begin = clock();
 
-	for(int i=0; i<best_tour.nCities; i++)
-	{
-		cout << best_tour.cities[i] << " - ";
-	}
-	cout << "Longitud: " << best_tour.vPath;
+	Depth_first_search(tour);
+	//Depth_first_search_iter01(tour);
+	//Depth_first_search_iter02(tour);
+
+	end = clock();
+	elapsed_secs = double(end - begin) * 1.0 / CLOCKS_PER_SEC;
+
+	printPath(best_tour);
+	cout << "Time elapsed: " << elapsed_secs << " secs";
 
 	return 0;
 }
