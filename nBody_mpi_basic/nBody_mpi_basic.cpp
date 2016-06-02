@@ -1,112 +1,65 @@
 #include <iostream>
 #include <mpi.h>
-#include <fstream>
-#include <string>
+#include "funcBasic.h"
 
 using namespace std;
 
-#define DIM 2
-#define X 0
-#define Y 1
+// Global variables
+#define N 			4	// Numero de particulas
+#define delta_t		1	// Intervalo de tiempo
+#define numSim		3	// Numero de simulaciones
+#define tipoRes		1	// 0: Resultado final, 1: Resultado por iteracion
 
-double const G = 6.673;
+#define G 	6.673
 
+double masses[N];
+double pos[N][2], vel[N][2];
+double forces[N][2];
 
-void printPosAndVel(int N, double** pos, double** vel)
+int main()
 {
-	cout << "Particle \t Position \t Velocity\n";
-	for(int i=0; i<N; i++)
-	{
-		cout << (i+1) << "\t(" << pos[i][X] << "," << pos[i][Y] << ")\t "
-			<< "(" << vel[i][X] << "," << vel[i][Y] << ")\n";
-	}
-}
+	int my_rank, comm_sz;
 
-bool loadDataFromFile(string fileName, int N, double *mass, double** pos, double** vel)
-{
-	fstream myFile(fileName, std::ios_base::in);
-	double temp = 0.0;
-
-	if(myFile.is_open())
-	{
-		for(int i = 0; i < N; i++)
-		{
-			// Reading mass
-			myFile >> temp;
-			mass[i] = temp;
-
-			// Reading position
-			myFile >> temp;
-			pos[i][X] = temp;
-			myFile >> temp;
-			pos[i][Y] = temp;
-
-			// Reading velocity
-			myFile >> temp;
-			vel[i][X] = temp;
-			myFile >> temp;
-			vel[i][Y] = temp;
-		}
-		return true;
-	}
-	else
-		cout << "Archivo no encontrado\n";
-	return false;
-}
-
-int main(int argc, char *argv[]) {
-	int my_rank, size;
-
-	double *masses, **pos, **vel, **forces;
-
-	int N, delta_t, numSim, tipoRes;
-	string fileName = "";
-
-	cout << "Ingrese los siguientes datos:";
-	cout << "\n- Numero de particulas: ";
-	cin >> N;
-	cout << "\n- Intervalo de tiempo (s): ";
-	cin >> delta_t;
-	cout << "\n- Numero de iteraciones: ";
-	cin >> numSim;
-	cout << "\n- Archivo con los datos: ";
-	cin >> fileName;
-	cout << "\nResultado final (0) / Resultado por iteracion (1): ";
-	cin >> tipoRes;
-
-	MPI_Init(&argc, &argv);
+	MPI_Init(NULL, NULL);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-	if(my_rank == 0)
-	{
-		masses = new double[N];
-		pos = new double *[N];
-		vel = new double *[N];
-		forces = new double*[N];
-
-		for(int i = 0; i < N; i++)
-		{
-			pos[i] = new double[2];
-			vel[i] = new double[2];
-			forces[i] = new double[2];
-			forces[i][X] = forces[i][Y] = 0;
-		}
-
-		if(!loadDataFromFile(fileName, N, masses, pos, vel))
-			return 0;
-	}
-
-	MPI_Comm comm = MPI_COMM_WORLD;
-	int loc_n = N / size;
-	int loc_vel = N / size;
 	MPI_Datatype vect_mpi_t;
 	MPI_Type_contiguous(DIM, MPI_DOUBLE, &vect_mpi_t);
 	MPI_Type_commit(&vect_mpi_t);
 
+	MPI_Comm comm = MPI_COMM_WORLD;
+	int loc_n = N / comm_sz;
+
+	double loc_vel[1][2];
+	loc_vel[1][X] = 0;
+	loc_vel[1][Y] = 0;
+
+	/*
+	loc_vel = new double *[loc_n];
+
+	for(int i=0; i<loc_n; i++)
+	{
+		loc_vel[i] = new double[2];
+		loc_vel[i][X] = 0;
+		loc_vel[i][Y] = 0;
+	}
+	*/
+
+	if(my_rank == 0)
+	{cout << "master executed";
+		// Loading initial data
+		initData(N, masses, pos, vel);
+		// Clear forces array
+		clearForces(N, forces);
+	}
+
+	int loc_pos = my_rank * loc_n;
+
 	MPI_Bcast(masses, N, MPI_DOUBLE, 0, comm);
 	MPI_Bcast(pos, N, vect_mpi_t, 0, comm);
-	MPI_Scatter(vel, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, 0, comm);
+	MPI_Bcast(vel, N, vect_mpi_t, 0, comm);
+	MPI_Scatter(vel, loc_n, vect_mpi_t, loc_vel, loc_n, vect_mpi_t, 0, comm);
 
 	double x_diff, y_diff, dist, dist_cubed;
 
@@ -114,6 +67,8 @@ int main(int argc, char *argv[]) {
 	{
 		if (tipoRes == 1)
 		{
+			MPI_Gather(loc_vel, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, 0, comm);
+			//MPI_Allgather(MPI_IN_PLACE, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, comm);
 			if (my_rank == 0)
 			{
 				cout << "Simulacion en t = " << (delta_t * s) << endl;
@@ -121,7 +76,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 
-		for(int q=0; q<N; q++)
+		for(int q=loc_pos; q<(loc_pos + loc_n); q++)
 		{
 			forces[q][X] = forces[q][Y] = 0;
 
@@ -139,18 +94,22 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		for(int q=0; q<N; q++)
+		int i=0;
+		for(int q=loc_pos; q<(loc_pos+loc_n); q++)
 		{
 			// Calcula la posicion y velocidad de q
-			pos[q][X] += delta_t * vel[q][X];
-			pos[q][Y] += delta_t * vel[q][Y];
-			vel[q][X] += delta_t / masses[q] * forces[q][X];
-			vel[q][Y] += delta_t / masses[q] * forces[q][Y];
+			pos[q][X] += delta_t * loc_vel[i][X];
+			pos[q][Y] += delta_t * loc_vel[i][Y];
+			loc_vel[i][X] += delta_t / masses[q] * forces[q][X];
+			loc_vel[i][Y] += delta_t / masses[q] * forces[q][Y];
+			i++;
 		}
 
 		MPI_Allgather(MPI_IN_PLACE, loc_n, vect_mpi_t, pos, loc_n, vect_mpi_t, comm);
+		//MPI_Allgather(MPI_IN_PLACE, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, comm);
 	}
 
+	MPI_Gather(loc_vel, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, 0, comm);
 	if(my_rank == 0)
 	{
 		cout << "Resultado final\n";
