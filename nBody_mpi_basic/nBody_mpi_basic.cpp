@@ -47,7 +47,7 @@ int main()
 	*/
 
 	if(my_rank == 0)
-	{cout << "master executed";
+	{
 		// Loading initial data
 		initData(N, masses, pos, vel);
 		// Clear forces array
@@ -58,7 +58,7 @@ int main()
 
 	MPI_Bcast(masses, N, MPI_DOUBLE, 0, comm);
 	MPI_Bcast(pos, N, vect_mpi_t, 0, comm);
-	MPI_Bcast(vel, N, vect_mpi_t, 0, comm);
+	//MPI_Bcast(vel, N, vect_mpi_t, 0, comm);
 	MPI_Scatter(vel, loc_n, vect_mpi_t, loc_vel, loc_n, vect_mpi_t, 0, comm);
 
 	double x_diff, y_diff, dist, dist_cubed;
