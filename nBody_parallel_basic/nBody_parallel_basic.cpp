@@ -1,94 +1,30 @@
 #include <iostream>
-#include <fstream>
-#include <string>
-#include "omp.h"
+#include <math.h>
+#include <omp.h>
+#include "funcBasic.h"
 
 using namespace std;
 
+// Global variables
+#define N 			100	// Numero de particulas
+#define delta_t		1	// Intervalo de tiempo
+#define numSim		3	// Numero de simulaciones
+#define tipoRes		0	// 0: Resultado final, 1: Resultado por iteracion
 
-double const G = 6.673;
-int const X = 0;
-int const Y = 1;
+#define G 	6.673
 
+double masses[N];
+double pos[N][2], vel[N][2];
+double forces[N][2];
 
-void printPosAndVel(int N, double** pos, double** vel)
+int main()
 {
-	cout << "Particle \t Position \t Velocity\n";
-	for(int i=0; i<N; i++)
-	{
-		cout << (i+1) << "\t(" << pos[i][X] << "," << pos[i][Y] << ")\t "
-			<< "(" << vel[i][X] << "," << vel[i][Y] << ")\n";
-	}
-}
+	// Loading initial data
+	initData(N, masses, pos, vel);
+	//loadDataFromFile("particles.txt", N, masses, pos, vel);
 
-bool loadDataFromFile(string fileName, int N, double *mass, double** pos, double** vel)
-{
-	fstream myFile(fileName, std::ios_base::in);
-	double temp = 0.0;
-
-	if(myFile.is_open())
-	{
-		for(int i = 0; i < N; i++)
-		{
-			// Reading mass
-			myFile >> temp;
-			mass[i] = temp;
-
-			// Reading position
-			myFile >> temp;
-			pos[i][X] = temp;
-			myFile >> temp;
-			pos[i][Y] = temp;
-
-			// Reading velocity
-			myFile >> temp;
-			vel[i][X] = temp;
-			myFile >> temp;
-			vel[i][Y] = temp;
-		}
-		return true;
-	}
-	else
-		cout << "Archivo no encontrado\n";
-	return false;
-}
-
-int main() {
-	int N, delta_t, numSim, tipoRes;
-	string fileName = "";
-
-	cout << "Ingrese los siguientes datos:";
-	cout << "\n- Numero de particulas: ";
-	cin >> N;
-	cout << "\n- Intervalo de tiempo (s): ";
-	cin >> delta_t;
-	cout << "\n- Numero de iteraciones: ";
-	cin >> numSim;
-	cout << "\n- Archivo con los datos: ";
-	cin >> fileName;
-	cout << "\nResultado final (0) / Resultado por iteracion (1): ";
-	cin >> tipoRes;
-
-	// Creando el vector de masas
-	double *masses;
-	masses = new double[N];
-
-	// Creando los vectores para almacenar las posiciones y las velocidades
-	double **pos, **vel, **forces;
-	pos = new double *[N];
-	vel = new double *[N];
-	forces = new double*[N];
-
-	for(int i = 0; i < N; i++)
-	{
-		pos[i] = new double[2];
-		vel[i] = new double[2];
-		forces[i] = new double[2];
-		forces[i][X] = forces[i][Y] = 0;
-	}
-
-	if(!loadDataFromFile(fileName, N, masses, pos, vel))
-		return 0;
+	// Clear forces array
+	clearForces(N, forces);
 
 	double x_diff, y_diff, dist, dist_cubed;
 	int numThreads;
@@ -100,7 +36,7 @@ int main() {
 		{
 #pragma omp single
 			{
-			cout << "Simulacion en t = " << (delta_t * s) << endl;
+				cout << "Simulation in t = " << (delta_t * s) << endl;
 			printPosAndVel(N, pos, vel);
 			}
 		}
@@ -110,7 +46,7 @@ int main() {
 		{
 			forces[q][X] = forces[q][Y] = 0;
 
-			// Calcula la fuerza total sobre q
+			// Calculate total force in q
 			for(int k=0; k<N; k++)
 			{
 				if(k != q)
@@ -127,14 +63,14 @@ int main() {
 #pragma omp for
 		for(int q=0; q<N; q++)
 		{
-			// Calcula la posicion y velocidad de q
+			// Calcule position and velocity of q
 			pos[q][X] += delta_t * vel[q][X];
 			pos[q][Y] += delta_t * vel[q][Y];
 			vel[q][X] += delta_t / masses[q] * forces[q][X];
 			vel[q][Y] += delta_t / masses[q] * forces[q][Y];
 		}
 	}
-	cout << "Resultado final\n";
+	cout << "Final result\n";
 	printPosAndVel(N, pos, vel);
 
 	return 0;
