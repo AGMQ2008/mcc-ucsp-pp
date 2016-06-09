@@ -1,11 +1,12 @@
 #include <iostream>
+#include <math.h>
 #include <mpi.h>
 #include "funcBasic.h"
 
 using namespace std;
 
 // Global variables
-#define N 			4	// Numero de particulas
+#define N 			8	// Numero de particulas
 #define delta_t		1	// Intervalo de tiempo
 #define numSim		3	// Numero de simulaciones
 #define tipoRes		1	// 0: Resultado final, 1: Resultado por iteracion
@@ -24,30 +25,23 @@ int main()
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
+	MPI_Comm comm = MPI_COMM_WORLD;
 	MPI_Datatype vect_mpi_t;
 	MPI_Type_contiguous(DIM, MPI_DOUBLE, &vect_mpi_t);
 	MPI_Type_commit(&vect_mpi_t);
 
-	MPI_Comm comm = MPI_COMM_WORLD;
-	int loc_n = N / comm_sz;
-
-	double loc_vel[1][2];
-	loc_vel[1][X] = 0;
-	loc_vel[1][Y] = 0;
-
-	/*
-	loc_vel = new double *[loc_n];
+	const int loc_n = N / comm_sz;
+	double loc_vel[loc_n][2];
 
 	for(int i=0; i<loc_n; i++)
 	{
-		loc_vel[i] = new double[2];
 		loc_vel[i][X] = 0;
 		loc_vel[i][Y] = 0;
 	}
-	*/
 
 	if(my_rank == 0)
 	{
+		cout << "master: Loading initial data\n";
 		// Loading initial data
 		initData(N, masses, pos, vel);
 		// Clear forces array
@@ -58,7 +52,6 @@ int main()
 
 	MPI_Bcast(masses, N, MPI_DOUBLE, 0, comm);
 	MPI_Bcast(pos, N, vect_mpi_t, 0, comm);
-	//MPI_Bcast(vel, N, vect_mpi_t, 0, comm);
 	MPI_Scatter(vel, loc_n, vect_mpi_t, loc_vel, loc_n, vect_mpi_t, 0, comm);
 
 	double x_diff, y_diff, dist, dist_cubed;
@@ -68,10 +61,9 @@ int main()
 		if (tipoRes == 1)
 		{
 			MPI_Gather(loc_vel, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, 0, comm);
-			//MPI_Allgather(MPI_IN_PLACE, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, comm);
 			if (my_rank == 0)
 			{
-				cout << "Simulacion en t = " << (delta_t * s) << endl;
+				cout << "Simulation in t = " << (delta_t * s) << endl;
 				printPosAndVel(N, pos, vel);
 			}
 		}
@@ -80,7 +72,7 @@ int main()
 		{
 			forces[q][X] = forces[q][Y] = 0;
 
-			// Calcula la fuerza total sobre q
+			// Calculate total force in q
 			for(int k=0; k<N; k++)
 			{
 				if(k != q)
@@ -97,7 +89,7 @@ int main()
 		int i=0;
 		for(int q=loc_pos; q<(loc_pos+loc_n); q++)
 		{
-			// Calcula la posicion y velocidad de q
+			// Calcule position and velocity of q
 			pos[q][X] += delta_t * loc_vel[i][X];
 			pos[q][Y] += delta_t * loc_vel[i][Y];
 			loc_vel[i][X] += delta_t / masses[q] * forces[q][X];
@@ -106,13 +98,12 @@ int main()
 		}
 
 		MPI_Allgather(MPI_IN_PLACE, loc_n, vect_mpi_t, pos, loc_n, vect_mpi_t, comm);
-		//MPI_Allgather(MPI_IN_PLACE, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, comm);
 	}
 
 	MPI_Gather(loc_vel, loc_n, vect_mpi_t, vel, loc_n, vect_mpi_t, 0, comm);
 	if(my_rank == 0)
 	{
-		cout << "Resultado final\n";
+		cout << "Final result\n";
 		printPosAndVel(N, pos, vel);
 	}
 
