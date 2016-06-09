@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <stack>
 #include <queue>
-#include "omp.h"
+#include <omp.h>
 
 using namespace std;
 
-#define N 6		// Number of cities
+#define N 10		// Number of cities
 #define hometown 0		// salesperson's hometown (city 0)
 #define MAX_DIST 9999999
 #define NUM_MIN_THREADS 6
@@ -182,8 +182,8 @@ void Depth_first_search_static(tour_t tour)
 		{
 #pragma omp critical
 			{
-			if(Is_best_tour(curr_tour))
-				Update_best_tour(curr_tour);
+				if(Is_best_tour(curr_tour))
+					Update_best_tour(curr_tour);
 			}
 		}
 		else
@@ -201,8 +201,8 @@ void Depth_first_search_static(tour_t tour)
 	}
 }
 
-int threads_in_cond_wait = 0;
 stack<tour_t> new_stack;
+queue<int> threadsSleep;
 
 int awakened_thread = -1;
 int work_remains = 1;
@@ -231,61 +231,61 @@ void setStack(stack<tour_t> *s, stack<tour_t> d)
 bool Terminated(stack<tour_t> *my_stack)
 {
 	int got_lock;
-	if(my_stack->size() >= 2 && threads_in_cond_wait > 0 && new_stack.size() == 0)
+	int my_rank = omp_get_thread_num();
+
+	if(my_stack->size() >= 2 && threadsSleep.size() > 0 && new_stack.size() == 0)
 	{
 		got_lock = omp_test_lock(&term_lock);
 		if(got_lock != 0)
 		{
-		if(threads_in_cond_wait > 0 && new_stack.size() == 0)
-		{
-			// split my_stack creating new_stack
-			int sStack = my_stack->size();
-			for(int i=0; i<sStack/2; i++)
+			if(threadsSleep.size() > 0 && new_stack.size() == 0)
 			{
-				new_stack.push(my_stack->top());
-				my_stack->pop();
+				// split my_stack creating new_stack
+				int sStack = my_stack->size();
+				for(int i=0; i<sStack/2; i++)
+				{
+					new_stack.push(my_stack->top());
+					my_stack->pop();
+				}
+				awakened_thread = threadsSleep.front();
 			}
-			awakened_thread = 0;
-			//pthread_cond_signal(&term_cond_var);
+			omp_unset_lock(&term_lock);
+			return 0;
 		}
-		omp_unset_lock(&term_lock);
-		return 0;
-	}
 	}
 	else if(!my_stack->empty())
 		return 0;
 	else // stack is empty
 	{
-		//pthread_mutex_lock(&term_mutex);
-		if(threads_in_cond_wait == thread_count - 1)
+		omp_set_lock(&term_lock);
+		if(threadsSleep.size() == (thread_count - 1))
 		{
-			threads_in_cond_wait++;
-			//pthread_cond_broadcast(&term_cond_var);
-			//pthread_mutex_unlock(&term_mutex);
+			threadsSleep.push(my_rank);
+			work_remains = 0;
+			omp_unset_lock(&term_lock);
 			return 1;
 		}
 		else
 		{
-			int my_rank;
-			my_rank = omp_get_thread_num();
+			threadsSleep.push(my_rank);
 
-			//threads_in_cond_wait++;
 			omp_unset_lock(&term_lock);
 			while(awakened_thread != my_rank && work_remains)
 				;
 			omp_set_lock(&term_lock);
 
-			if(threads_in_cond_wait < thread_count)
+			if(threadsSleep.size() < thread_count)
 			{
 				setStack(my_stack, new_stack);
 				clearNewStack();
-				threads_in_cond_wait--;
-				//pthread_mutex_unlock(&term_mutex);
+				threadsSleep.pop();
+				awakened_thread = -1;
+				omp_unset_lock(&term_lock);
 				return 0;
 			}
 			else
 			{
-				omp_unset_lock(&best_tour_lock);
+				omp_unset_lock(&term_lock);
 				return 1;
 			}
 		}
@@ -327,13 +327,14 @@ void Depth_first_search_dynamic(tour_t tour)
 
 int main()
 {
+	tour_t tour;
+
 	best_tour.nCities = 0;
 	best_tour.vPath = MAX_DIST;
 
 	createDigraph();
 	//printDigraph();
 
-	tour_t tour;
 	tour.nCities = 0;
 	tour.vPath = 0;
 	Add_city(&tour, hometown);
@@ -344,19 +345,25 @@ int main()
 	omp_set_num_threads(thread_count);
 	omp_init_lock(&best_tour_lock);
 
-	int my_rank;
-#pragma omp parallel
+	double start, end;
+	start = omp_get_wtime();
+
+#pragma omp parallel for
+	for(int i = 0; i < thread_count; i++)
 	{
-	my_rank = omp_get_thread_num();
-	if(!myQueue.empty())
-	{
-		cout << my_rank << endl;
 		tour = myQueue.front();
+		//Depth_first_search_static(tour);
+		Depth_first_search_dynamic(tour);
 		myQueue.pop();
-		Depth_first_search_static(tour);
-	}
 	}
 
-	printPath(best_tour);
+	end = omp_get_wtime();
+
+#pragma omp single
+	{
+		printPath(best_tour);
+		cout << "Time elapsed: " << (end - start) << endl;
+	}
+
 	return 0;
 }
